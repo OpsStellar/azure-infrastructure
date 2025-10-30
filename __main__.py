@@ -12,7 +12,7 @@ from pulumi import Output, export
 config = pulumi.Config()
 location = config.get("location") or "eastus"
 environment = config.get("environment") or "production"
-project_name = "opsverse"
+project_name = "opsstellar"
 
 # Kubernetes configuration
 k8s_version = config.get("k8s_version") or "1.28.3"
@@ -28,7 +28,7 @@ resource_prefix = f"{project_name}-{environment}"
 
 # Tags for all resources
 tags = {
-    "Project": "OpsVerse",
+    "Project": "opsstellar",
     "Environment": environment,
     "ManagedBy": "Pulumi",
     "CostCenter": "Engineering"

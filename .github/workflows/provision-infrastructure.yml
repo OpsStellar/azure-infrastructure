@@ -1,0 +1,191 @@
+name: Provision Azure AKS Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'azure-infrastructure/**'
+      - '.github/workflows/provision-infrastructure.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'azure-infrastructure/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy (dev/staging/production)'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+      action:
+        description: 'Pulumi action (preview/up/destroy)'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - up
+          - destroy
+
+env:
+  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+jobs:
+  preview-infrastructure:
+    name: Preview Infrastructure Changes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        working-directory: azure-infrastructure
+        run: |
+          pip install -r requirements.txt
+
+      - name: Pulumi Preview (Local Backend)
+        working-directory: azure-infrastructure
+        run: |
+          pulumi login --local
+          pulumi stack select ${{ github.event.inputs.environment || 'dev' }} || pulumi stack init ${{ github.event.inputs.environment || 'dev' }}
+          pulumi preview --stack ${{ github.event.inputs.environment || 'dev' }}
+          
+  provision-infrastructure:
+    name: Provision AKS Infrastructure
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    environment:
+      name: ${{ github.event.inputs.environment || 'dev' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        working-directory: azure-infrastructure
+        run: |
+          pip install -r requirements.txt
+
+      - name: Setup Azure CLI
+        uses: azure/login@v2
+        with:
+          creds: |
+            {
+              "clientId": "${{ secrets.ARM_CLIENT_ID }}",
+              "clientSecret": "${{ secrets.ARM_CLIENT_SECRET }}",
+              "subscriptionId": "${{ secrets.ARM_SUBSCRIPTION_ID }}",
+              "tenantId": "${{ secrets.ARM_TENANT_ID }}"
+            }
+
+      - name: Determine Pulumi Action
+        id: pulumi-action
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "action=${{ github.event.inputs.action }}" >> $GITHUB_OUTPUT
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            echo "action=up" >> $GITHUB_OUTPUT
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Pulumi Preview (Local Backend)
+        working-directory: azure-infrastructure
+        run: |
+          pulumi login --local
+          pulumi stack select ${{ steps.pulumi-action.outputs.environment }} || pulumi stack init ${{ steps.pulumi-action.outputs.environment }}
+          pulumi preview --stack ${{ steps.pulumi-action.outputs.environment }}
+
+      - name: Wait for Approval
+        if: steps.pulumi-action.outputs.action == 'up'
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ github.TOKEN }}
+          approvers: ${{ github.actor }}
+          minimum-approvals: 1
+          issue-title: "Review Pulumi Plan for ${{ steps.pulumi-action.outputs.environment }}"
+          issue-body: "Please review the Pulumi preview above and approve to apply changes to Azure infrastructure."
+
+      - name: Pulumi Up (Local Backend)
+        if: steps.pulumi-action.outputs.action == 'up'
+        working-directory: azure-infrastructure
+        run: |
+          pulumi up --yes --stack ${{ steps.pulumi-action.outputs.environment }}
+          
+      - name: Export outputs
+        if: steps.pulumi-action.outputs.action == 'up'
+        working-directory: azure-infrastructure
+        run: |
+          pulumi stack output kubeconfig > kubeconfig-${{ steps.pulumi-action.outputs.environment }}.yaml
+          pulumi stack output cluster_fqdn > cluster-fqdn.txt
+          pulumi stack output acr_login_server > acr-server.txt
+          
+      - name: Upload kubeconfig
+        if: steps.pulumi-action.outputs.action == 'up'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubeconfig-${{ steps.pulumi-action.outputs.environment }}
+          path: azure-infrastructure/kubeconfig-${{ steps.pulumi-action.outputs.environment }}.yaml
+          retention-days: 7
+
+      - name: Configure kubectl
+        if: steps.pulumi-action.outputs.action == 'up'
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ steps.pulumi-action.outputs.kubeconfig }}" > $HOME/.kube/config
+
+      - name: Deploy Istio Gateway
+        if: steps.pulumi-action.outputs.action == 'up'
+        run: |
+          kubectl apply -f k8s-manifests/istio-gateway.yaml
+          kubectl wait --for=condition=available --timeout=300s deployment/istiod -n istio-system
+
+      - name: Verify deployment
+        if: steps.pulumi-action.outputs.action == 'up'
+        run: |
+          echo "=== Cluster Nodes ==="
+          kubectl get nodes -o wide
+          echo ""
+          echo "=== Namespaces ==="
+          kubectl get namespaces
+          echo ""
+          echo "=== Istio Components ==="
+          kubectl get pods -n istio-system
+          echo ""
+          echo "=== Services ==="
+          kubectl get svc -n istio-system
+          echo ""
+          echo "=== Gateway ==="
+          kubectl get gateway -n opsverse
+
+      - name: Summary
+        if: steps.pulumi-action.outputs.action == 'up'
+        run: |
+          echo "## Infrastructure Provisioning Complete! 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ steps.pulumi-action.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Cluster FQDN:** $(cat azure-infrastructure/cluster-fqdn.txt)" >> $GITHUB_STEP_SUMMARY
+          echo "**ACR Server:** $(cat azure-infrastructure/acr-server.txt)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Download the kubeconfig artifact" >> $GITHUB_STEP_SUMMARY
+          echo "2. Deploy services using the service deployment workflow" >> $GITHUB_STEP_SUMMARY
+          echo "3. Configure DNS for your domain" >> $GITHUB_STEP_SUMMARY
