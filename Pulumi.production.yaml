@@ -1,0 +1,12 @@
+# Production Environment Configuration
+config:
+  azure-native:location: eastus
+  environment: production
+  k8s_version: "1.28.3"
+  node_count: 2
+  node_vm_size: Standard_B2s
+  enable_autoscaling: true
+  min_node_count: 2
+  max_node_count: 5
+  enable_istio: true
+  enable_monitoring: true

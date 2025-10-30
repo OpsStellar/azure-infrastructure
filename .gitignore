@@ -1,0 +1,25 @@
+# Pulumi state files
+.pulumi/
+*.pyc
+__pycache__/
+
+# Python
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+*.secret
+.env.local

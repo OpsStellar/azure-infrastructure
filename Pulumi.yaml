@@ -1,0 +1,52 @@
+name: opsverse-azure
+runtime: python
+description: Cost-effective Azure infrastructure for OpsVerse SaaS ($1000/6 months budget)
+
+config:
+  # Azure Configuration
+  azure-native:location:
+    description: Azure region for deployment (eastus is cost-effective)
+    default: eastus
+  
+  # Environment
+  environment:
+    description: Environment name (production, staging, development)
+    default: production
+  
+  # Database Configuration
+  postgres_password:
+    description: PostgreSQL admin password
+    secret: true
+  
+  # JWT Configuration
+  jwt_secret_key:
+    description: JWT secret key for authentication
+    secret: true
+  
+  # Jenkins Configuration (Optional)
+  jenkins_url:
+    description: Jenkins server URL
+    default: ""
+  
+  jenkins_username:
+    description: Jenkins username
+    default: ""
+  
+  jenkins_api_token:
+    description: Jenkins API token
+    secret: true
+    default: ""
+  
+  # Azure AD OAuth (Optional)
+  azure_ad_tenant_id:
+    description: Azure AD Tenant ID for OAuth
+    default: ""
+  
+  azure_ad_client_id:
+    description: Azure AD Client ID
+    default: ""
+  
+  azure_ad_client_secret:
+    description: Azure AD Client Secret
+    secret: true
+    default: ""
