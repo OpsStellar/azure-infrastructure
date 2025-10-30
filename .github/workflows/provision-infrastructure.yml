@@ -54,12 +54,10 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        working-directory: azure-infrastructure
         run: |
           pip install -r requirements.txt
 
       - name: Pulumi Preview (Local Backend)
-        working-directory: azure-infrastructure
         run: |
           pulumi login --local
           pulumi stack select ${{ github.event.inputs.environment || 'dev' }} || pulumi stack init ${{ github.event.inputs.environment || 'dev' }}
@@ -81,7 +79,6 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        working-directory: azure-infrastructure
         run: |
           pip install -r requirements.txt
 
@@ -108,7 +105,6 @@ jobs:
           fi
 
       - name: Pulumi Preview (Local Backend)
-        working-directory: azure-infrastructure
         run: |
           pulumi login --local
           pulumi stack select ${{ steps.pulumi-action.outputs.environment }} || pulumi stack init ${{ steps.pulumi-action.outputs.environment }}
@@ -126,13 +122,11 @@ jobs:
 
       - name: Pulumi Up (Local Backend)
         if: steps.pulumi-action.outputs.action == 'up'
-        working-directory: azure-infrastructure
         run: |
           pulumi up --yes --stack ${{ steps.pulumi-action.outputs.environment }}
           
       - name: Export outputs
         if: steps.pulumi-action.outputs.action == 'up'
-        working-directory: azure-infrastructure
         run: |
           pulumi stack output kubeconfig > kubeconfig-${{ steps.pulumi-action.outputs.environment }}.yaml
           pulumi stack output cluster_fqdn > cluster-fqdn.txt
@@ -143,7 +137,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kubeconfig-${{ steps.pulumi-action.outputs.environment }}
-          path: azure-infrastructure/kubeconfig-${{ steps.pulumi-action.outputs.environment }}.yaml
+          path: kubeconfig-${{ steps.pulumi-action.outputs.environment }}.yaml
           retention-days: 7
 
       - name: Configure kubectl
