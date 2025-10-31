@@ -44,15 +44,19 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"
 
-      - name: Install dependencies
+      - name: Setup Pulumi CLI
+        uses: pulumi/actions@v5
+
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Setup Pulumi
-        uses: pulumi/actions@v5
+      - name: Verify installation
+        run: |
+          pulumi version
+          python -c "import pulumi; print('Pulumi SDK installed successfully')"
 
       - name: Pulumi login
         run: pulumi login --local
@@ -106,15 +110,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"
 
-      - name: Install dependencies
+      - name: Setup Pulumi CLI
+        uses: pulumi/actions@v5
+
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
-      - name: Setup Pulumi
-        uses: pulumi/actions@v5
 
       - name: Pulumi login
         run: pulumi login --local
@@ -159,15 +162,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"
 
-      - name: Install dependencies
+      - name: Setup Pulumi CLI
+        uses: pulumi/actions@v5
+
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
-      - name: Setup Pulumi
-        uses: pulumi/actions@v5
 
       - name: Pulumi login
         run: pulumi login --local
