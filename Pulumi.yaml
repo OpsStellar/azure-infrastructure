@@ -6,7 +6,7 @@ config:
   # Azure Configuration
   azure-native:location:
     description: Azure region for deployment (eastus is cost-effective)
-    default: eastus
+    value: eastus
   
   # Environment
   environment:
