@@ -155,6 +155,16 @@ jobs:
             echo "environment=dev" >> $GITHUB_OUTPUT
           fi
 
+      - name: Set Pulumi Passphrase
+        run: |
+          echo "Setting Pulumi passphrase..."
+          export PULUMI_CONFIG_PASSPHRASE=${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+
+      - name: Ensure Pulumi Stack Exists
+        run: |
+          echo "Checking if Pulumi stack exists..."
+          pulumi stack select ${{ github.event.inputs.environment || 'dev' }} || pulumi stack init ${{ github.event.inputs.environment || 'dev' }}
+
       - name: Pulumi Preview (Local Backend)
         run: |
           pulumi login --local

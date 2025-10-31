@@ -8,5 +8,5 @@ config:
   enable_autoscaling: true
   min_node_count: 1
   max_node_count: 3
-  enable_istio: true
-  enable_monitoring: true
+  enable_istio: false
+  enable_monitoring: false
