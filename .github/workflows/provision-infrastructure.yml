@@ -44,6 +44,8 @@ jobs:
     name: Preview Infrastructure Changes
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    environment:
+      name: ${{ github.event.inputs.environment || 'dev' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -56,6 +58,20 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
+
+      - name: Validate Azure Secrets for Preview
+        run: |
+          echo "Validating Azure secrets are available for preview..."
+          if [ -z "$ARM_CLIENT_ID" ]; then
+            echo "❌ ARM_CLIENT_ID environment variable is not set"
+          else
+            echo "✅ ARM_CLIENT_ID is set: $ARM_CLIENT_ID"
+          fi
+          if [ -z "$ARM_SUBSCRIPTION_ID" ]; then
+            echo "❌ ARM_SUBSCRIPTION_ID environment variable is not set"
+          else
+            echo "✅ ARM_SUBSCRIPTION_ID is set: $ARM_SUBSCRIPTION_ID"
+          fi
 
       - name: Pulumi Preview (Local Backend)
         run: |
@@ -82,6 +98,30 @@ jobs:
         run: |
           pip install -r requirements.txt
 
+      - name: Validate Azure Secrets
+        run: |
+          echo "Validating Azure secrets are set..."
+          if [ -z "${{ secrets.ARM_CLIENT_ID }}" ]; then
+            echo "❌ ARM_CLIENT_ID is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.ARM_CLIENT_SECRET }}" ]; then
+            echo "❌ ARM_CLIENT_SECRET is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.ARM_SUBSCRIPTION_ID }}" ]; then
+            echo "❌ ARM_SUBSCRIPTION_ID is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.ARM_TENANT_ID }}" ]; then
+            echo "❌ ARM_TENANT_ID is not set"
+            exit 1
+          fi
+          echo "✅ All Azure secrets are set"
+          echo "Client ID: ${{ secrets.ARM_CLIENT_ID }}"
+          echo "Subscription ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}"
+          echo "Tenant ID: ${{ secrets.ARM_TENANT_ID }}"
+
       - name: Setup Azure CLI
         uses: azure/login@v2
         with:
@@ -92,6 +132,17 @@ jobs:
               "subscriptionId": "${{ secrets.ARM_SUBSCRIPTION_ID }}",
               "tenantId": "${{ secrets.ARM_TENANT_ID }}"
             }
+
+      - name: Verify Azure Access
+        run: |
+          echo "Testing Azure CLI access..."
+          az account show --output table
+          echo ""
+          echo "Available subscriptions:"
+          az account list --output table
+          echo ""
+          echo "Current subscription details:"
+          az account show
 
       - name: Determine Pulumi Action
         id: pulumi-action
