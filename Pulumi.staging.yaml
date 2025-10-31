@@ -1,12 +1,26 @@
 # Staging Environment Configuration
 config:
+  # Azure Configuration
   azure-native:location: eastus
-  environment: staging
-  k8s_version: "1.28.3"
-  node_count: 2
-  node_vm_size: Standard_B2s
-  enable_autoscaling: true
-  min_node_count: 2
-  max_node_count: 4
-  enable_istio: true
-  enable_monitoring: true
+
+  # Environment
+  opsverse-azure:environment: staging
+
+  # Kubernetes Configuration
+  opsverse-azure:k8s_version: "1.28.3"
+  opsverse-azure:node_count: "2"
+  opsverse-azure:node_vm_size: Standard_B2s
+  opsverse-azure:min_node_count: "1"
+  opsverse-azure:max_node_count: "5"
+
+  # Network Configuration
+  opsverse-azure:vnet_address_space: "10.10.0.0/16"
+  opsverse-azure:aks_subnet_prefix: "10.10.0.0/20"
+  opsverse-azure:service_cidr: "10.11.0.0/16"
+  opsverse-azure:dns_service_ip: "10.11.0.10"
+
+  # ACR Configuration
+  opsverse-azure:acr_sku: Standard
+
+  # Resource naming
+  opsverse-azure:project_name: opsstellar

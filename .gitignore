@@ -23,3 +23,5 @@ Thumbs.db
 # Secrets
 *.secret
 .env.local
+kubeconfig.yaml
+*.kubeconfig

@@ -1,13 +1,22 @@
 # Development Environment Configuration
 config:
+  # Azure Configuration
   azure-native:location: eastus
-  opsverse-azure:enable_autoscaling: "true"
-  opsverse-azure:enable_istio: "false"
-  opsverse-azure:enable_monitoring: "false"
+  # Environment
   opsverse-azure:environment: dev
-  opsverse-azure:k8s_version: 1.28.3
-  opsverse-azure:max_node_count: "3"
-  opsverse-azure:min_node_count: "1"
+  # Kubernetes Configuration
+  opsverse-azure:k8s_version: "1.28.3"
   opsverse-azure:node_count: "2"
   opsverse-azure:node_vm_size: Standard_B2s
-encryptionsalt: v1:kX4W3KGmguQ=:v1:uN6mZEcqQHTqM9cO:nVzEzAGmoDQwBjUIvQSFeyvZDTJthQ==
+  opsverse-azure:min_node_count: "1"
+  opsverse-azure:max_node_count: "3"
+  # Network Configuration
+  opsverse-azure:vnet_address_space: "10.0.0.0/16"
+  opsverse-azure:aks_subnet_prefix: "10.0.0.0/20"
+  opsverse-azure:service_cidr: "10.1.0.0/16"
+  opsverse-azure:dns_service_ip: "10.1.0.10"
+  # ACR Configuration
+  opsverse-azure:acr_sku: Basic
+  # Resource naming
+  opsverse-azure:project_name: opsstellar
+encryptionsalt: v1:vEzUsyxOyx4=:v1:iOTZ6EGcNQ2T6vX9:GzgTEr4+kpzU1Z7RwAnF5EFLjtnWAA==

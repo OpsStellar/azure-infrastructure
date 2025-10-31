@@ -1,52 +1,66 @@
-name: OpsStellar-saas-azure
-runtime: python
-description: Cost-effective Azure infrastructure for OpsVerse SaaS ($1000/6 months budget)
+name: opsverse-azure
+runtime:
+  name: python
+  options:
+    virtualenv: venv
+main: infrastructure/
+description: Azure infrastructure with Networking, ACR, and AKS
 
 config:
   # Azure Configuration
   azure-native:location:
-    description: Azure region for deployment (eastus is cost-effective)
+    description: Azure region for deployment
     value: eastus
-  
+
+  # Project Configuration
+  project_name:
+    description: Project name for resource naming
+    default: opsstellar
+
   # Environment
   environment:
-    description: Environment name (production, staging, development)
-    default: production
-  
-  # Database Configuration
-  postgres_password:
-    description: PostgreSQL admin password
-    secret: true
-  
-  # JWT Configuration
-  jwt_secret_key:
-    description: JWT secret key for authentication
-    secret: true
-  
-  # Jenkins Configuration (Optional)
-  jenkins_url:
-    description: Jenkins server URL
-    default: ""
-  
-  jenkins_username:
-    description: Jenkins username
-    default: ""
-  
-  jenkins_api_token:
-    description: Jenkins API token
-    secret: true
-    default: ""
-  
-  # Azure AD OAuth (Optional)
-  azure_ad_tenant_id:
-    description: Azure AD Tenant ID for OAuth
-    default: ""
-  
-  azure_ad_client_id:
-    description: Azure AD Client ID
-    default: ""
-  
-  azure_ad_client_secret:
-    description: Azure AD Client Secret
-    secret: true
-    default: ""
+    description: Environment name (production, staging, dev)
+    default: dev
+
+  # Kubernetes Configuration
+  k8s_version:
+    description: Kubernetes version for AKS
+    default: "1.28.3"
+
+  node_count:
+    description: Initial number of nodes in the AKS cluster
+    default: "2"
+
+  node_vm_size:
+    description: VM size for AKS nodes
+    default: Standard_B2s
+
+  min_node_count:
+    description: Minimum number of nodes for autoscaling
+    default: "1"
+
+  max_node_count:
+    description: Maximum number of nodes for autoscaling
+    default: "3"
+
+  # Network Configuration
+  vnet_address_space:
+    description: VNet address space
+    default: "10.0.0.0/16"
+
+  aks_subnet_prefix:
+    description: AKS subnet address prefix
+    default: "10.0.0.0/20"
+
+  service_cidr:
+    description: Kubernetes service CIDR
+    default: "10.1.0.0/16"
+
+  dns_service_ip:
+    description: Kubernetes DNS service IP
+    default: "10.1.0.10"
+
+  # ACR Configuration
+  acr_sku:
+    description: ACR SKU (Basic, Standard, Premium)
+    default: Basic
