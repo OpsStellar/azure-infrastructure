@@ -1,4 +1,4 @@
-name: opsverse-azure
+name: OpsStellar-saas-azure
 runtime: python
 description: Cost-effective Azure infrastructure for OpsVerse SaaS ($1000/6 months budget)
 

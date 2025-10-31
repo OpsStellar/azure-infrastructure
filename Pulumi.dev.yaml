@@ -1,12 +1,13 @@
 # Development Environment Configuration
 config:
   azure-native:location: eastus
-  environment: dev
-  k8s_version: "1.28.3"
-  node_count: 2
-  node_vm_size: Standard_B2s
-  enable_autoscaling: true
-  min_node_count: 1
-  max_node_count: 3
-  enable_istio: false
-  enable_monitoring: false
+  opsverse-azure:enable_autoscaling: "true"
+  opsverse-azure:enable_istio: "false"
+  opsverse-azure:enable_monitoring: "false"
+  opsverse-azure:environment: dev
+  opsverse-azure:k8s_version: 1.28.3
+  opsverse-azure:max_node_count: "3"
+  opsverse-azure:min_node_count: "1"
+  opsverse-azure:node_count: "2"
+  opsverse-azure:node_vm_size: Standard_B2s
+encryptionsalt: v1:kX4W3KGmguQ=:v1:uN6mZEcqQHTqM9cO:nVzEzAGmoDQwBjUIvQSFeyvZDTJthQ==
