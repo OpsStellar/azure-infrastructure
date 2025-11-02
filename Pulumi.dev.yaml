@@ -5,10 +5,11 @@ config:
   # Environment
   opsverse-azure:environment: dev
   # Kubernetes Configuration
-  opsverse-azure:k8s_version: "1.28.3"
+  opsverse-azure:k8s_version: "1.31.11"
   opsverse-azure:node_count: "2"
-  opsverse-azure:node_vm_size: Standard_B2s
-  opsverse-azure:min_node_count: "1"
+  opsverse-azure:node_vm_size: Standard_DC2as_v5
+  opsverse-azure:enable_autoscaling: "true"
+  opsverse-azure:min_node_count: "2"
   opsverse-azure:max_node_count: "3"
   # Network Configuration
   opsverse-azure:vnet_address_space: "10.0.0.0/16"

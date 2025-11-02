@@ -23,6 +23,9 @@ environment = config.get("environment") or "dev"
 k8s_version = config.get("k8s_version") or "1.28.3"
 node_count = config.get_int("node_count") or 2
 node_vm_size = config.get("node_vm_size") or "Standard_B2s"
+enable_autoscaling = config.get_bool("enable_autoscaling")
+if enable_autoscaling is None:
+    enable_autoscaling = True  # Default to enabled
 min_node_count = config.get_int("min_node_count") or 1
 max_node_count = config.get_int("max_node_count") or 3
 
@@ -121,13 +124,13 @@ aks_cluster = azure_native.containerservice.ManagedCluster(
     agent_pool_profiles=[
         azure_native.containerservice.ManagedClusterAgentPoolProfileArgs(
             name="nodepool1",
-            count=node_count,
+            count=min_node_count if enable_autoscaling else node_count,
             vm_size=node_vm_size,
             os_type="Linux",
             mode="System",
-            enable_auto_scaling=True,
-            min_count=min_node_count,
-            max_count=max_node_count,
+            enable_auto_scaling=enable_autoscaling,
+            min_count=min_node_count if enable_autoscaling else None,
+            max_count=max_node_count if enable_autoscaling else None,
             vnet_subnet_id=aks_subnet.id,
             type="VirtualMachineScaleSets"
         )
@@ -144,9 +147,14 @@ aks_creds = pulumi.Output.all(resource_group.name, aks_cluster.name).apply(
     )
 )
 
-# Decode kubeconfig
+# Decode kubeconfig (handle both bytes and string types)
 kubeconfig = aks_creds.apply(
-    lambda creds: creds.kubeconfigs[0].value.decode("utf-8") if creds.kubeconfigs else ""
+    lambda creds: (
+        creds.kubeconfigs[0].value.decode("utf-8") 
+        if creds.kubeconfigs and isinstance(creds.kubeconfigs[0].value, bytes)
+        else creds.kubeconfigs[0].value if creds.kubeconfigs
+        else ""
+    )
 )
 
 # Create Kubernetes provider using the AKS cluster's kubeconfig
