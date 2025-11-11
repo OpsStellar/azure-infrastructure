@@ -1,27 +1,17 @@
-# Pulumi state files
-.pulumi/
-*.pyc
-__pycache__/
-
-# Python
 venv/
-env/
-*.egg-info/
-dist/
-build/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
+.pulumi/backups/
+.pulumi/history/
+.pulumi/locks/
+.pulumi/plugins/
+.pulumi/workspaces/
+.pulumi/.cachedVersionInfo
+.pulumi/bin/
+.pulumi/credentials.json
+.pulumi/meta.yaml
+.pulumi/meta.yaml.attrs
+__pycache__/
+*.pyc
 .DS_Store
-Thumbs.db
-
-# Secrets
-*.secret
-.env.local
+*.log
 kubeconfig.yaml
-*.kubeconfig
+stack-backup.json
