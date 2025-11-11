@@ -1,8 +1,6 @@
 name: opsverse-azure
 runtime:
   name: python
-  options:
-    virtualenv: venv
 main: infrastructure/
 description: Azure infrastructure with Networking, ACR, and AKS
 
