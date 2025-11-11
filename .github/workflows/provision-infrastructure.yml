@@ -27,7 +27,6 @@ env:
   ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
   ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
   ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-  PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
   JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
   POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
 
@@ -157,3 +156,4 @@ jobs:
         run: |
           echo "## Destroying ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
           pulumi destroy --yes --skip-preview
+
