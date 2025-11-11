@@ -59,7 +59,7 @@ jobs:
           pulumi version
           python -c "import pulumi; print('Pulumi SDK installed successfully')"
           pulumi login --local
-          pulumi ls
+          pulumi stack ls
           pulumi stack init ${{ github.event.inputs.environment }}
           pulumi config set --secret postgres_password $POSTGRES_PASSWORD
           pulumi config set --secret jwt_secret_key $JWT_SECRET_KEY
@@ -158,6 +158,7 @@ jobs:
         run: |
           echo "## Destroying ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
           pulumi destroy --yes --skip-preview
+
 
 
 
