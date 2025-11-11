@@ -59,7 +59,7 @@ jobs:
           python -c "import pulumi; print('Pulumi SDK installed successfully')"
 
       - name: Pulumi login
-        run: pulumi login --local
+        run: pulumi login file://${{ github.workspace }}
 
       - name: Select stack
         run: |
@@ -120,7 +120,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Pulumi login
-        run: pulumi login --local
+        run: pulumi login file://${{ github.workspace }}
 
       - name: Select stack
         run: |
@@ -172,7 +172,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Pulumi login
-        run: pulumi login --local
+        run: pulumi login file://${{ github.workspace }}
 
       - name: Select stack
         run: |
