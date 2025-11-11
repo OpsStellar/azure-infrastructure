@@ -4,14 +4,14 @@
         "stack": "organization/opsverse-azure/dev",
         "latest": {
             "manifest": {
-                "time": "2025-11-10T16:41:09.078604165Z",
+                "time": "2025-11-11T17:48:14.78860414Z",
                 "magic": "72caf200b8cb26dd4af4f3ba893b9325df78e718846f87a4e0443bd140d097e0",
                 "version": "v3.205.0"
             },
             "secrets_providers": {
                 "type": "passphrase",
                 "state": {
-                    "salt": "v1:vEzUsyxOyx4=:v1:iOTZ6EGcNQ2T6vX9:GzgTEr4+kpzU1Z7RwAnF5EFLjtnWAA=="
+                    "salt": "v1:1tj4LaLzzJQ=:v1:CI1hcH9xIIFpJqXQ:qm52/sENBWhctVSkINL/R7CNn7HBMg=="
                 }
             },
             "metadata": {}
