@@ -36,6 +36,8 @@ jobs:
     name: Pulumi - ${{ github.event.inputs.action }} - ${{ github.event.inputs.environment }}
     runs-on: ubuntu-latest
     if: github.event.inputs.action != 'destroy'
+    permissions:
+      contents: read
     environment:
       name: ${{ github.event.inputs.environment }}
     
@@ -126,6 +128,8 @@ jobs:
     name: Destroy Infrastructure - ${{ github.event.inputs.environment }}
     runs-on: ubuntu-latest
     if: github.event.inputs.action == 'destroy'
+    permissions:
+      contents: read
     environment:
       name: ${{ github.event.inputs.environment }}-destroy
     
