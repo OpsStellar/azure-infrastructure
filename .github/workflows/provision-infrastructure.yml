@@ -32,60 +32,12 @@ env:
   PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
   
 jobs:
-  preview:
-    name: Preview Changes - ${{ github.event.inputs.environment }}
+  pulumi:
+    name: Pulumi - ${{ github.event.inputs.action }} - ${{ github.event.inputs.environment }}
     runs-on: ubuntu-latest
-    outputs:
-      environment: ${{ github.event.inputs.environment }}
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Setup Pulumi CLI
-        uses: pulumi/actions@v5
-
-      - name: Pulumi preview
-        id: preview
-        working-directory: .
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pulumi version
-          python -c "import pulumi; print('Pulumi SDK installed successfully')"
-          pulumi login --local
-          pulumi stack ls
-          pulumi stack init ${{ github.event.inputs.environment }}
-          pulumi config set --secret postgres_password $POSTGRES_PASSWORD
-          pulumi config set --secret jwt_secret_key $JWT_SECRET_KEY
-          pulumi config --show-secrets
-          echo "## Pulumi Preview - ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          pulumi preview
-
-  # approve:
-  #   name: Approve Deployment
-  #   runs-on: ubuntu-latest
-  #   needs: preview
-  #   if: github.event.inputs.action == 'apply'
-  #   environment:
-  #     name: ${{ github.event.inputs.environment }}-approval
-  #   steps:
-  #     - name: Manual approval checkpoint
-  #       run: |
-  #         echo "✅ Deployment approved for ${{ github.event.inputs.environment }}"
-  #         echo "Proceeding with infrastructure provisioning..."
-
-  deploy:
-    name: Deploy Infrastructure - ${{ github.event.inputs.environment }}
-    runs-on: ubuntu-latest
-    needs: [preview]
-    if: github.event.inputs.action == 'apply'
+    if: github.event.inputs.action != 'destroy'
+    permissions:
+      contents: read
     environment:
       name: ${{ github.event.inputs.environment }}
     
@@ -101,30 +53,83 @@ jobs:
       - name: Setup Pulumi CLI
         uses: pulumi/actions@v5
 
-      - name: Pulumi up
+      - name: Run Pulumi action
         working-directory: .
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
         run: |
+          set -euo pipefail
+          
+          # Install dependencies
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          
+          # Verify Pulumi installation
+          pulumi version
+          python -c "import pulumi; print('Pulumi SDK installed successfully')"
+          
+          # Export passphrase for Pulumi
+          export PULUMI_CONFIG_PASSPHRASE
+          
+          # Login to local backend
           pulumi login --local
-          pulumi stack select ${{ github.event.inputs.environment }}
-          echo "## Deploying to ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          pulumi up --yes --skip-preview
-          echo "## Infrastructure Outputs" >> $GITHUB_STEP_SUMMARY
-          pulumi stack output --json | jq -r 'to_entries[] | "- **\(.key)**: \(.value)"' >> $GITHUB_STEP_SUMMARY
-          pulumi stack output kubeconfig --show-secrets > kubeconfig.yaml
+          
+          # Idempotent stack selection/initialization
+          pulumi stack select ${{ github.event.inputs.environment }} || pulumi stack init ${{ github.event.inputs.environment }}
+          
+          # Set secrets
+          pulumi config set --secret postgres_password "$POSTGRES_PASSWORD"
+          pulumi config set --secret jwt_secret_key "$JWT_SECRET_KEY"
+          pulumi config --show-secrets
+          
+          # Execute action based on input
+          ACTION="${{ github.event.inputs.action }}"
+          
+          if [ "$ACTION" = "plan" ]; then
+            echo "## Pulumi Preview - ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            pulumi preview | tee -a $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          elif [ "$ACTION" = "apply" ]; then
+            echo "## Deploying to ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+            pulumi up --yes --skip-preview
+            echo "## Infrastructure Outputs" >> $GITHUB_STEP_SUMMARY
+            pulumi stack output --json | jq -r 'to_entries[] | "- **\(.key)**: \(.value)"' >> $GITHUB_STEP_SUMMARY
+            pulumi stack output kubeconfig --show-secrets > kubeconfig.yaml
+          else
+            echo "Error: Invalid action '$ACTION'. Must be 'plan' or 'apply'."
+            exit 1
+          fi
 
       - name: Upload kubeconfig
+        if: github.event.inputs.action == 'apply'
         uses: actions/upload-artifact@v4
         with:
           name: kubeconfig-${{ github.event.inputs.environment }}
           path: kubeconfig.yaml
           retention-days: 7
 
+  # approve:
+  #   name: Approve Deployment
+  #   runs-on: ubuntu-latest
+  #   needs: pulumi
+  #   if: github.event.inputs.action == 'apply'
+  #   environment:
+  #     name: ${{ github.event.inputs.environment }}-approval
+  #   steps:
+  #     - name: Manual approval checkpoint
+  #       run: |
+  #         echo "✅ Deployment approved for ${{ github.event.inputs.environment }}"
+  #         echo "Proceeding with infrastructure provisioning..."
+
   destroy:
     name: Destroy Infrastructure - ${{ github.event.inputs.environment }}
     runs-on: ubuntu-latest
     if: github.event.inputs.action == 'destroy'
+    permissions:
+      contents: read
     environment:
       name: ${{ github.event.inputs.environment }}-destroy
     
@@ -138,15 +143,35 @@ jobs:
           python-version: "3.11"
 
       - name: Setup Pulumi CLI
-        uses: pulumi/actions@v5     
+        uses: pulumi/actions@v5
 
       - name: Pulumi preview destroy
         working-directory: .
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
         run: |
+          set -euo pipefail
+          
+          # Install dependencies
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          
+          # Verify Pulumi installation
+          pulumi version
+          python -c "import pulumi; print('Pulumi SDK installed successfully')"
+          
+          # Export passphrase for Pulumi
+          export PULUMI_CONFIG_PASSPHRASE
+          
+          # Login to local backend
           pulumi login --local
-          pulumi stack select ${{ github.event.inputs.environment }}
+          
+          # Idempotent stack selection/initialization
+          pulumi stack select ${{ github.event.inputs.environment }} || pulumi stack init ${{ github.event.inputs.environment }}
+          
+          # Preview destroy
           echo "## Preview Destroy - ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           pulumi preview --diff 2>&1 | tee destroy-preview.txt
@@ -156,6 +181,7 @@ jobs:
       - name: Confirm and destroy
         working-directory: .
         run: |
+          export PULUMI_CONFIG_PASSPHRASE="${{ secrets.PULUMI_CONFIG_PASSPHRASE }}"
           echo "## Destroying ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
           pulumi destroy --yes --skip-preview
 
