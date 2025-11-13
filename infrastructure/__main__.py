@@ -163,6 +163,9 @@ k8s_provider = k8s.Provider(
     kubeconfig=kubeconfig
 )
 
+# Get client config for subscription ID
+client_config = azure_native.authorization.get_client_config()
+
 # Attach ACR to AKS (grant AKS pull access to ACR)
 acr_assignment = azure_native.authorization.RoleAssignment(
     f"{resource_prefix}-aks-acr-pull",
@@ -170,7 +173,7 @@ acr_assignment = azure_native.authorization.RoleAssignment(
         lambda profile: profile["kubeletidentity"].object_id if profile else ""
     ),
     principal_type="ServicePrincipal",
-    role_definition_id=f"/subscriptions/{azure_native.authorization.get_client_config().subscription_id}/providers/Microsoft.Authorization/roleDefinitions/7f951dda-4ed3-4680-a7ca-43fe172d538d",  # AcrPull role
+    role_definition_id=f"/subscriptions/{client_config.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/7f951dda-4ed3-4680-a7ca-43fe172d538d",  # AcrPull role
     scope=acr.id
 )
 

@@ -81,6 +81,13 @@ jobs:
           path: preview.txt
           retention-days: 7
 
+      - name: Upload Pulumi state
+        uses: actions/upload-artifact@v4
+        with:
+          name: pulumi-state-${{ github.event.inputs.environment }}
+          path: .pulumi
+          retention-days: 1
+
   approve:
     name: Approve Deployment
     runs-on: ubuntu-latest
@@ -118,6 +125,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Download Pulumi state
+        uses: actions/download-artifact@v4
+        with:
+          name: pulumi-state-${{ github.event.inputs.environment }}
+          path: .pulumi
 
       - name: Pulumi login
         run: pulumi login file://${{ github.workspace }}
