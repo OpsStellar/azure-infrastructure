@@ -59,7 +59,9 @@ jobs:
           python -c "import pulumi; print('Pulumi SDK installed successfully')"
 
       - name: Pulumi login
-        run: pulumi login file://${{ github.workspace }}
+        run: |
+          mkdir -p ${{ github.workspace }}/.pulumi
+          pulumi login file://${{ github.workspace }}/.pulumi
 
       - name: Select stack
         run: |
@@ -83,9 +85,10 @@ jobs:
 
       - name: Upload Pulumi state
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: pulumi-state-${{ github.event.inputs.environment }}
-          path: .pulumi
+          path: ${{ github.workspace }}/.pulumi
           retention-days: 1
 
   approve:
@@ -130,10 +133,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: pulumi-state-${{ github.event.inputs.environment }}
-          path: .pulumi
+          path: ${{ github.workspace }}/.pulumi
 
       - name: Pulumi login
-        run: pulumi login file://${{ github.workspace }}
+        run: pulumi login file://${{ github.workspace }}/.pulumi
 
       - name: Select stack
         run: |
@@ -185,7 +188,9 @@ jobs:
           pip install -r requirements.txt
 
       - name: Pulumi login
-        run: pulumi login file://${{ github.workspace }}
+        run: |
+          mkdir -p ${{ github.workspace }}/.pulumi
+          pulumi login file://${{ github.workspace }}/.pulumi
 
       - name: Select stack
         run: |
