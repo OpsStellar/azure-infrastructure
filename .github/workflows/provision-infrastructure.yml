@@ -58,6 +58,18 @@ jobs:
           pulumi version
           python -c "import pulumi; print('Pulumi SDK installed successfully')"
 
+      - name: Verify Azure credentials
+        run: |
+          echo "Checking Azure authentication..."
+          if [ -z "$ARM_CLIENT_ID" ]; then echo "❌ ARM_CLIENT_ID is not set"; exit 1; fi
+          if [ -z "$ARM_CLIENT_SECRET" ]; then echo "❌ ARM_CLIENT_SECRET is not set"; exit 1; fi
+          if [ -z "$ARM_TENANT_ID" ]; then echo "❌ ARM_TENANT_ID is not set"; exit 1; fi
+          if [ -z "$ARM_SUBSCRIPTION_ID" ]; then echo "❌ ARM_SUBSCRIPTION_ID is not set"; exit 1; fi
+          echo "✅ All Azure environment variables are set"
+          echo "Testing Azure login..."
+          az login --service-principal -u $ARM_CLIENT_ID -p $ARM_CLIENT_SECRET --tenant $ARM_TENANT_ID
+          az account show
+
       - name: Pulumi login
         run: |
           mkdir -p ${{ github.workspace }}/pulumi-state
@@ -91,12 +103,33 @@ jobs:
           path: preview.txt
           retention-days: 7
 
+      - name: Check if state exists
+        id: check_state
+        if: always()
+        run: |
+          echo "=== Checking for Pulumi state ==="
+          echo "Workspace: ${{ github.workspace }}"
+          if [ -d "${{ github.workspace }}/pulumi-state/.pulumi" ]; then
+            echo "Found state in: ${{ github.workspace }}/pulumi-state/.pulumi"
+            ls -laR ${{ github.workspace }}/pulumi-state/.pulumi
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "path=${{ github.workspace }}/pulumi-state/.pulumi" >> $GITHUB_OUTPUT
+          elif [ -d "${{ github.workspace }}/pulumi-state" ] && [ "$(ls -A ${{ github.workspace }}/pulumi-state)" ]; then
+            echo "Found state in: ${{ github.workspace }}/pulumi-state"
+            ls -laR ${{ github.workspace }}/pulumi-state
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "path=${{ github.workspace }}/pulumi-state" >> $GITHUB_OUTPUT
+          else
+            echo "No state found"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Upload Pulumi state
         uses: actions/upload-artifact@v4
-        if: always()
+        if: steps.check_state.outputs.exists == 'true'
         with:
           name: pulumi-state-${{ github.event.inputs.environment }}
-          path: ${{ github.workspace }}/pulumi-state
+          path: ${{ steps.check_state.outputs.path }}
           retention-days: 1
 
   approve:
@@ -139,12 +172,16 @@ jobs:
 
       - name: Download Pulumi state
         uses: actions/download-artifact@v4
+        continue-on-error: true
+        id: download_state
         with:
           name: pulumi-state-${{ github.event.inputs.environment }}
           path: ${{ github.workspace }}/pulumi-state
 
       - name: Pulumi login
-        run: pulumi login file://${{ github.workspace }}/pulumi-state
+        run: |
+          mkdir -p ${{ github.workspace }}/pulumi-state
+          pulumi login file://${{ github.workspace }}/pulumi-state
 
       - name: Select stack
         run: |
