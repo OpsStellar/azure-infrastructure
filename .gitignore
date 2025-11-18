@@ -1,17 +1,38 @@
-venv/
-.pulumi/backups/
-.pulumi/history/
-.pulumi/locks/
-.pulumi/plugins/
-.pulumi/workspaces/
-.pulumi/.cachedVersionInfo
-.pulumi/bin/
-.pulumi/credentials.json
-.pulumi/meta.yaml
-.pulumi/meta.yaml.attrs
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Pulumi
+.pulumi/
 *.pyc
+
+# Environment files (NEVER commit!)
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Logs
 *.log
+logs/
+
+# Kubernetes
 kubeconfig.yaml
 stack-backup.json
