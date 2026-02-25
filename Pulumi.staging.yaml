@@ -4,23 +4,24 @@ config:
   azure-native:location: eastus
 
   # Environment
-  opsverse-azure:environment: staging
+  opsstellar-azure:environment: staging
 
   # Kubernetes Configuration
-  opsverse-azure:k8s_version: "1.28.3"
-  opsverse-azure:node_count: "2"
-  opsverse-azure:node_vm_size: Standard_B2s
-  opsverse-azure:min_node_count: "1"
-  opsverse-azure:max_node_count: "5"
+  opsstellar-azure:k8s_version: "1.28.3"
+  opsstellar-azure:node_count: "2"
+  opsstellar-azure:node_vm_size: Standard_B2s
+  opsstellar-azure:min_node_count: "1"
+  opsstellar-azure:max_node_count: "5"
 
   # Network Configuration
-  opsverse-azure:vnet_address_space: "10.10.0.0/16"
-  opsverse-azure:aks_subnet_prefix: "10.10.0.0/20"
-  opsverse-azure:service_cidr: "10.11.0.0/16"
-  opsverse-azure:dns_service_ip: "10.11.0.10"
+  opsstellar-azure:vnet_address_space: "10.10.0.0/16"
+  opsstellar-azure:aks_subnet_prefix: "10.10.0.0/20"
+  opsstellar-azure:service_cidr: "10.11.0.0/16"
+  opsstellar-azure:dns_service_ip: "10.11.0.10"
 
   # ACR Configuration
-  opsverse-azure:acr_sku: Standard
+  opsstellar-azure:acr_sku: Standard
 
   # Resource naming
-  opsverse-azure:project_name: opsstellar
+  opsstellar-azure:project_name: opsstellar
+

@@ -1,5 +1,5 @@
 """
-Pulumi Infrastructure as Code for OpsVerse SaaS on Azure Kubernetes Service (AKS)
+Pulumi Infrastructure as Code for OpsStellar SaaS on Azure Kubernetes Service (AKS)
 Production-ready with service mesh (Istio), service discovery, and multi-environment support
 """
 
@@ -13,7 +13,7 @@ import json
 config = pulumi.Config()
 location = config.get("location") or "eastus"
 environment = config.get("environment") or "production"
-project_name = "opsverse"
+project_name = "opsstellar"
 
 # AKS Configuration
 k8s_version = config.get("k8s_version") or "1.28.3"
@@ -32,7 +32,7 @@ resource_prefix = f"{project_name}-{environment}"
 
 # Tags for all resources
 tags = {
-    "Project": "OpsVerse",
+    "Project": "OpsStellar",
     "Environment": environment,
     "ManagedBy": "Pulumi",
     "CostCenter": "Engineering"
@@ -221,7 +221,7 @@ acr_assignment = azure_native.authorization.RoleAssignment(
 
 # 8. Create Kubernetes Namespaces
 namespaces = {}
-for ns_name in ["opsverse", "monitoring", "istio-system"]:
+for ns_name in ["opsstellar", "monitoring", "istio-system"]:
     namespaces[ns_name] = k8s.core.v1.Namespace(
         ns_name,
         metadata=k8s.meta.v1.ObjectMetaArgs(
@@ -302,7 +302,7 @@ docker_secret = k8s.core.v1.Secret(
     "acr-secret",
     metadata=k8s.meta.v1.ObjectMetaArgs(
         name="acr-secret",
-        namespace="opsverse"
+        namespace="opsstellar"
     ),
     type="kubernetes.io/dockerconfigjson",
     string_data={
@@ -321,7 +321,7 @@ docker_secret = k8s.core.v1.Secret(
     },
     opts=pulumi.ResourceOptions(
         provider=k8s_provider,
-        depends_on=[namespaces["opsverse"]]
+        depends_on=[namespaces["opsstellar"]]
     )
 )
 
@@ -349,14 +349,14 @@ postgres_server = azure_native.dbforpostgresql.Server(
         public_network_access="Disabled"
     ),
     version="15",
-    administrator_login="opsverse_admin",
+    administrator_login="opsstellar_admin",
     administrator_login_password=postgres_password,
     tags=tags
 )
 
 # Create databases
 databases = {}
-for db_name in ["auth_service", "audit_logs", "opsverse"]:
+for db_name in ["auth_service", "audit_logs", "opsstellar"]:
     databases[db_name] = azure_native.dbforpostgresql.Database(
         f"{resource_prefix}-{db_name}-db",
         resource_group_name=resource_group.name,
@@ -417,19 +417,19 @@ postgres_secret = k8s.core.v1.Secret(
     "postgres-secret",
     metadata=k8s.meta.v1.ObjectMetaArgs(
         name="postgres-secret",
-        namespace="opsverse"
+        namespace="opsstellar"
     ),
     string_data={
         "host": postgres_server.fully_qualified_domain_name,
-        "username": pulumi.Output.from_input("opsverse_admin"),
+        "username": pulumi.Output.from_input("opsstellar_admin"),
         "password": postgres_password,
         "auth_db": pulumi.Output.from_input("auth_service"),
         "audit_db": pulumi.Output.from_input("audit_logs"),
-        "main_db": pulumi.Output.from_input("opsverse")
+        "main_db": pulumi.Output.from_input("opsstellar")
     },
     opts=pulumi.ResourceOptions(
         provider=k8s_provider,
-        depends_on=[namespaces["opsverse"]]
+        depends_on=[namespaces["opsstellar"]]
     )
 )
 
@@ -437,7 +437,7 @@ redis_secret = k8s.core.v1.Secret(
     "redis-secret",
     metadata=k8s.meta.v1.ObjectMetaArgs(
         name="redis-secret",
-        namespace="opsverse"
+        namespace="opsstellar"
     ),
     string_data={
         "host": redis_cache.host_name,
@@ -445,7 +445,7 @@ redis_secret = k8s.core.v1.Secret(
     },
     opts=pulumi.ResourceOptions(
         provider=k8s_provider,
-        depends_on=[namespaces["opsverse"]]
+        depends_on=[namespaces["opsstellar"]]
     )
 )
 
@@ -469,25 +469,26 @@ export("redis_hostname", redis_cache.host_name)
 export("key_vault_uri", key_vault.properties.apply(lambda p: p.vault_uri))
 export("kubeconfig", aks_creds.apply(lambda creds: creds.kubeconfigs[0].value.decode()))
 export("istio_ingress_ip", ingress_ip if enable_istio else "Istio not enabled")
-export("opsverse_namespace", "opsverse")
+export("opsstellar_namespace", "opsstellar")
 
 # Export connection strings for services
 export("postgres_connection_strings", {
     "auth_service": Output.all(
         postgres_server.fully_qualified_domain_name,
         postgres_password
-    ).apply(lambda args: f"postgresql://opsverse_admin:{args[1]}@{args[0]}:5432/auth_service?sslmode=require"),
+    ).apply(lambda args: f"postgresql://opsstellar_admin:{args[1]}@{args[0]}:5432/auth_service?sslmode=require"),
     "audit_logs": Output.all(
         postgres_server.fully_qualified_domain_name,
         postgres_password
-    ).apply(lambda args: f"postgresql://opsverse_admin:{args[1]}@{args[0]}:5432/audit_logs?sslmode=require"),
-    "opsverse": Output.all(
+    ).apply(lambda args: f"postgresql://opsstellar_admin:{args[1]}@{args[0]}:5432/audit_logs?sslmode=require"),
+    "opsstellar": Output.all(
         postgres_server.fully_qualified_domain_name,
         postgres_password
-    ).apply(lambda args: f"postgresql://opsverse_admin:{args[1]}@{args[0]}:5432/opsverse?sslmode=require")
+    ).apply(lambda args: f"postgresql://opsstellar_admin:{args[1]}@{args[0]}:5432/opsstellar?sslmode=require")
 })
 
 export("redis_connection_string", Output.all(
     redis_cache.host_name,
     redis_keys
 ).apply(lambda args: f"rediss://:{args[1].primary_key}@{args[0]}:6380/0"))
+

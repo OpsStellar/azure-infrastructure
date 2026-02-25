@@ -1,5 +1,5 @@
 """
-Pulumi Infrastructure as Code for OpsVerse SaaS on Azure
+Pulumi Infrastructure as Code for OpsStellar SaaS on Azure
 Basic setup with Networking, ACR, and AKS
 """
 
@@ -186,3 +186,4 @@ export("aks_cluster_fqdn", aks_cluster.fqdn)
 export("kubeconfig", kubeconfig)
 export("vnet_id", vnet.id)
 export("aks_subnet_id", aks_subnet.id)
+

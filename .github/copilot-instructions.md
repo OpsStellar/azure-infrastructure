@@ -6,7 +6,7 @@
 # Copilot / AI Agent Instructions — Azure Infrastructure (Pulumi)
 
 Quick orientation
-- This repository defines Azure infrastructure for OpsVerse SaaS using Pulumi (Python).
+- This repository defines Azure infrastructure for OpsStellar SaaS using Pulumi (Python).
 - Two Pulumi entrypoints are present:
   - `__main__.py` — Container Apps focused program (Container Apps environment, cheaper/scale-to-zero).
   - `__main_aks.py` — AKS-focused program (AKS + Istio, for production/service-mesh use).
@@ -54,3 +54,4 @@ Editing rules for AI
 If unsure, ask the human: "Should changes target Container Apps (`__main__.py`) or AKS (`__main_aks.py`) environment?"
 
 End of instructions.
+

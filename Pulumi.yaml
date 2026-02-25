@@ -1,4 +1,4 @@
-name: opsverse-azure
+name: opsstellar-azure
 runtime:
   name: python
 main: infrastructure/

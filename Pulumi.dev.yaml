@@ -1,28 +1,23 @@
 # Development Environment Configuration
+
+encryptionsalt: v1:JmNLZSzDTtg=:v1:UXxT314k5sEZKMpw:BDodwGonOszl3pbybo31w3u0Kfj/BQ==
 config:
   # Azure Configuration
   azure-native:location: eastus
-
-  # Environment
-  opsverse-azure:environment: dev
-
-  # Kubernetes Configuration
-  opsverse-azure:k8s_version: "1.31.11"
-  opsverse-azure:node_count: "1"
-  opsverse-azure:node_vm_size: Standard_DC2s_v3
-  opsverse-azure:min_node_count: "2"
-  opsverse-azure:max_node_count: "3"
-
-  # Network Configuration
-  opsverse-azure:vnet_address_space: "10.0.0.0/16"
-  opsverse-azure:aks_subnet_prefix: "10.0.0.0/20"
-  opsverse-azure:service_cidr: "10.1.0.0/16"
-  opsverse-azure:dns_service_ip: "10.1.0.10"
-
   # ACR Configuration
-  opsverse-azure:acr_sku: Basic
-
+  opsstellar-azure:acr_sku: Basic
+  opsstellar-azure:aks_subnet_prefix: "10.0.0.0/20"
+  opsstellar-azure:dns_service_ip: "10.1.0.10"
+  # Environment
+  opsstellar-azure:environment: dev
+  # Kubernetes Configuration
+  opsstellar-azure:k8s_version: "1.31.11"
+  opsstellar-azure:max_node_count: "2"
+  opsstellar-azure:min_node_count: "1"
+  opsstellar-azure:node_count: "1"
+  opsstellar-azure:node_vm_size: Standard_B1ms
   # Resource naming
-  opsverse-azure:project_name: opsstellar
-
-encryptionsalt: v1:4/9yplbEzd0=:v1:kWMGDivG36zgpzJp:sbywXe+9uxGXY38TDJl/1yYFfSjYgg==
+  opsstellar-azure:project_name: opsstellar
+  opsstellar-azure:service_cidr: "10.1.0.0/16"
+  # Network Configuration
+  opsstellar-azure:vnet_address_space: "10.0.0.0/16"
