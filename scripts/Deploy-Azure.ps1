@@ -1,19 +1,22 @@
 <#
 .SYNOPSIS
-    PowerShell script to provision Azure infrastructure, deploy services, and destroy resources.
+    PowerShell script to provision Azure infrastructure, build images, deploy services, and destroy resources.
 
 .DESCRIPTION
-    This script provides three main operations:
+    This script provides these main operations:
     - Provision: Create Azure infrastructure using Pulumi (AKS, ACR, VNet, etc.)
+    - Build: Build Docker images for all services and push to ACR
     - Deploy: Deploy all services to AKS using Helm charts
     - Destroy: Tear down all Azure infrastructure
+    - All: Provision, build, and deploy in sequence
 
 .PARAMETER Action
-    The action to perform: provision, deploy, destroy, or all
+    The action to perform: provision, build, deploy, destroy, or all
     - provision: Create infrastructure with Pulumi
+    - build: Build and push Docker images to ACR
     - deploy: Deploy all services with Helm
     - destroy: Destroy infrastructure with Pulumi
-    - all: Provision infrastructure and then deploy services
+    - all: Provision, build, and deploy in sequence
 
 .PARAMETER Environment
     Target environment: dev, staging, or production (default: dev)
@@ -22,11 +25,22 @@
     Skip confirmation prompts
 
 .PARAMETER Services
-    Comma-separated list of services to deploy. If not specified, all services are deployed.
+    Comma-separated list of services to build/deploy. If not specified, all services are used.
+
+.PARAMETER Tag
+    Docker image tag. Defaults to git short SHA, falls back to 'latest'.
 
 .EXAMPLE
     .\Deploy-Azure.ps1 -Action provision -Environment dev
     # Provision dev infrastructure
+
+.EXAMPLE
+    .\Deploy-Azure.ps1 -Action build -Environment dev
+    # Build all images and push to ACR
+
+.EXAMPLE
+    .\Deploy-Azure.ps1 -Action build -Services "auth-service,frontend" -Tag "v1.0.0"
+    # Build only auth-service and frontend with custom tag
 
 .EXAMPLE
     .\Deploy-Azure.ps1 -Action deploy -Environment staging
@@ -34,25 +48,21 @@
 
 .EXAMPLE
     .\Deploy-Azure.ps1 -Action all -Environment production -Force
-    # Provision and deploy to production without prompts
+    # Provision, build, and deploy to production without prompts
 
 .EXAMPLE
     .\Deploy-Azure.ps1 -Action destroy -Environment dev
     # Destroy dev infrastructure
 
-.EXAMPLE
-    .\Deploy-Azure.ps1 -Action deploy -Services "auth-service,frontend"
-    # Deploy only auth-service and frontend
-
 .NOTES
     Author: OpsStellar Team
-    Requires: Azure CLI, Pulumi, Helm, kubectl
+    Requires: Azure CLI, Pulumi, Helm, kubectl, Docker
 #>
 
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("provision", "deploy", "destroy", "all")]
+    [ValidateSet("provision", "build", "deploy", "destroy", "all")]
     [string]$Action,
 
     [Parameter(Mandatory = $false)]
@@ -63,7 +73,10 @@ param(
     [switch]$Force,
 
     [Parameter(Mandatory = $false)]
-    [string]$Services = ""
+    [string]$Services = "",
+
+    [Parameter(Mandatory = $false)]
+    [string]$Tag = ""
 )
 
 # Script configuration
@@ -71,6 +84,21 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Split-Path -Parent $ScriptDir
 $WorkspaceRoot = Split-Path -Parent $ProjectRoot
+
+# ACR configuration
+$AcrName = "opsstellardevacr"
+$AcrLoginServer = "opsstellardevacr.azurecr.io"
+
+# Resolve image tag: parameter > git SHA > "latest"
+if ([string]::IsNullOrEmpty($Tag)) {
+    try {
+        $Tag = (git -C $WorkspaceRoot rev-parse --short HEAD 2>$null)
+    }
+    catch { }
+    if ([string]::IsNullOrEmpty($Tag)) {
+        $Tag = "latest"
+    }
+}
 
 # Service definitions with their helm chart locations (relative to workspace root)
 $AllServices = @(
@@ -221,6 +249,7 @@ function Test-Prerequisites {
         @{ Name = "Helm"; Command = "helm" }
         @{ Name = "kubectl"; Command = "kubectl" }
         @{ Name = "Python"; Command = "python" }
+        @{ Name = "Docker"; Command = "docker" }
     )
 
     $allFound = $true
@@ -232,6 +261,7 @@ function Test-Prerequisites {
                 "helm" { (helm version --short 2>$null) }
                 "kubectl" { (kubectl version --client -o json 2>$null | ConvertFrom-Json).clientVersion.gitVersion }
                 "python" { (python --version 2>&1).ToString().Split(" ")[1] }
+                "docker" { (docker version --format '{{.Client.Version}}' 2>$null) }
             }
             $toolName = $tool.Name
             Write-Host "  [OK] ${toolName}: $version" -ForegroundColor Green
@@ -379,6 +409,125 @@ function Invoke-Provision {
     }
 }
 
+# Build Docker images and push to ACR
+function Invoke-Build {
+    param(
+        [string[]]$ServiceList = @()
+    )
+
+    Write-Header "Building Docker Images - Tag: $Tag"
+
+    # Load env
+    Import-EnvFile
+
+    # Login to ACR
+    Write-Step "1" "Logging into Azure Container Registry"
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+
+    # Login with service principal for ACR write access
+    $spClientId = [System.Environment]::GetEnvironmentVariable("ARM_CLIENT_ID", "Process")
+    $spSecret = [System.Environment]::GetEnvironmentVariable("ARM_CLIENT_SECRET", "Process")
+    $spTenant = [System.Environment]::GetEnvironmentVariable("ARM_TENANT_ID", "Process")
+    if ($spClientId -and $spSecret -and $spTenant) {
+        Write-Info "Authenticating with Service Principal..."
+        az login --service-principal -u $spClientId -p $spSecret --tenant $spTenant 2>&1 | Out-Null
+    }
+
+    $acrResult = az acr login --name $AcrName 2>&1
+    $ErrorActionPreference = $prevEAP
+    if ($LASTEXITCODE -eq 0) {
+        Write-Success "Logged into ACR: $AcrLoginServer"
+    }
+    else {
+        Write-Host "[ERROR] Failed to login to ACR: $acrResult" -ForegroundColor Red
+        Write-Host "  Ensure Docker is running and Azure CLI is authenticated." -ForegroundColor Yellow
+        exit 1
+    }
+
+    # Filter services if specified
+    $servicesToBuild = $AllServices | Sort-Object { $_.Priority }
+    if ($ServiceList.Count -gt 0) {
+        $servicesToBuild = $servicesToBuild | Where-Object {
+            $ServiceList -contains $_.Name
+        }
+    }
+
+    $serviceCount = $servicesToBuild.Count
+    Write-Step "2" "Building $serviceCount Services"
+
+    $successCount = 0
+    $failCount = 0
+    $builtImages = @()
+
+    foreach ($service in $servicesToBuild) {
+        $serviceName = $service.Name
+        $dockerContext = Join-Path $WorkspaceRoot $serviceName
+        $dockerfile = Join-Path $dockerContext "Dockerfile"
+
+        if (-not (Test-Path $dockerfile)) {
+            Write-Host "  [WARN] No Dockerfile found for $serviceName - skipping" -ForegroundColor Yellow
+            $failCount++
+            continue
+        }
+
+        $imageFullTag = "${AcrLoginServer}/${serviceName}:${Tag}"
+        $imageLatest = "${AcrLoginServer}/${serviceName}:latest"
+
+        Write-Host ""
+        Write-Host "  Building: $serviceName" -ForegroundColor White
+        Write-Host "    Image: $imageFullTag" -ForegroundColor DarkGray
+
+        try {
+            # Build the image
+            Write-Host "    Building image..." -ForegroundColor DarkGray
+            docker build -t $imageFullTag -t $imageLatest $dockerContext
+            if ($LASTEXITCODE -ne 0) { throw "Docker build failed" }
+            Write-Host "    [OK] Built successfully" -ForegroundColor Green
+
+            # Push both tags
+            Write-Host "    Pushing $imageFullTag ..." -ForegroundColor DarkGray
+            docker push $imageFullTag
+            if ($LASTEXITCODE -ne 0) { throw "Docker push failed for $imageFullTag" }
+            Write-Host "    [OK] Pushed $imageFullTag" -ForegroundColor Green
+
+            Write-Host "    Pushing $imageLatest ..." -ForegroundColor DarkGray
+            docker push $imageLatest
+            if ($LASTEXITCODE -ne 0) { throw "Docker push failed for $imageLatest" }
+            Write-Host "    [OK] Pushed $imageLatest" -ForegroundColor Green
+
+            $successCount++
+            $builtImages += $imageFullTag
+        }
+        catch {
+            $errorMsg = $_.Exception.Message
+            Write-Host "    [FAIL] $serviceName failed: $errorMsg" -ForegroundColor Red
+            $failCount++
+        }
+    }
+
+    # Summary
+    Write-Header "Build Summary"
+    Write-Host "  Tag:        $Tag" -ForegroundColor White
+    Write-Host "  Registry:   $AcrLoginServer" -ForegroundColor White
+    Write-Host "  Successful: $successCount" -ForegroundColor Green
+    $failColor = if ($failCount -gt 0) { "Red" } else { "Green" }
+    Write-Host "  Failed:     $failCount" -ForegroundColor $failColor
+
+    if ($builtImages.Count -gt 0) {
+        Write-Host ""
+        Write-Host "  Built images:" -ForegroundColor Cyan
+        foreach ($img in $builtImages) {
+            Write-Host "    - $img" -ForegroundColor DarkGray
+        }
+    }
+
+    if ($failCount -gt 0 -and $successCount -eq 0) {
+        Write-Host "[ERROR] All builds failed." -ForegroundColor Red
+        exit 1
+    }
+}
+
 # Deploy services with Helm
 function Invoke-Deploy {
     param(
@@ -411,9 +560,9 @@ function Invoke-Deploy {
 
     # Create namespace if it doesn't exist
     $namespace = "opsstellar-$Environment"
-    Write-Step "2" "Creating Namespace"
-    $namespaceExists = kubectl get namespace $namespace 2>$null
-    if (-not $namespaceExists) {
+    Write-Step "2" "Ensuring Namespace Exists"
+    $nsCheck = kubectl get namespace $namespace --ignore-not-found 2>$null
+    if ([string]::IsNullOrWhiteSpace($nsCheck)) {
         kubectl create namespace $namespace
         Write-Success "Namespace '$namespace' created"
     }
@@ -421,16 +570,19 @@ function Invoke-Deploy {
         Write-Success "Namespace '$namespace' already exists"
     }
 
-    # Get ACR details from Pulumi outputs (if available)
-    Push-Location $ProjectRoot
-    try {
-        $acrLoginServer = pulumi stack output acr_login_server 2>$null
-    }
-    catch {
-        $acrLoginServer = $null
-    }
-    finally {
-        Pop-Location
+    # Get ACR details - use script-level variable or Pulumi output
+    $resolvedAcr = $AcrLoginServer
+    if ([string]::IsNullOrEmpty($resolvedAcr)) {
+        Push-Location $ProjectRoot
+        try {
+            $resolvedAcr = pulumi stack output acr_login_server 2>$null
+        }
+        catch {
+            $resolvedAcr = $null
+        }
+        finally {
+            Pop-Location
+        }
     }
 
     # Filter services if specified
@@ -470,14 +622,17 @@ function Invoke-Deploy {
                 $service.Name
                 $helmPath
                 "--namespace", $namespace
+                "--create-namespace"
                 "--set", "environment=$Environment"
+                "--set", "image.tag=$Tag"
                 "--wait"
                 "--timeout", "5m"
             )
 
             # Add ACR registry if available
-            if ($acrLoginServer) {
-                $helmArgs += "--set", "image.registry=$acrLoginServer"
+            if ($resolvedAcr) {
+                $svcName = $service.Name
+                $helmArgs += "--set", "image.repository=${resolvedAcr}/${svcName}"
             }
 
             # Add values file if exists for environment
@@ -486,9 +641,12 @@ function Invoke-Deploy {
                 $helmArgs += "-f", $valuesFile
             }
 
-            helm @helmArgs 2>&1 | Out-Null
+            $helmOutput = helm @helmArgs 2>&1
             $serviceName = $service.Name
             Write-Host "    [OK] $serviceName deployed successfully" -ForegroundColor Green
+            if ($helmOutput) {
+                $helmOutput | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+            }
             $successCount++
         }
         catch {
@@ -563,21 +721,26 @@ function Main {
     Write-Header "OpsStellar Azure Deployment Script"
     Write-Host "  Action:      $Action" -ForegroundColor White
     Write-Host "  Environment: $Environment" -ForegroundColor White
+    Write-Host "  Image Tag:   $Tag" -ForegroundColor White
     Write-Host "  Force:       $Force" -ForegroundColor White
     
     if ($Services) {
         Write-Host "  Services:    $Services" -ForegroundColor White
     }
 
+    $serviceArray = @()
+    if ($Services) {
+        $serviceArray = $Services -split "," | ForEach-Object { $_.Trim() }
+    }
+
     switch ($Action) {
         "provision" {
             Invoke-Provision
         }
+        "build" {
+            Invoke-Build -ServiceList $serviceArray
+        }
         "deploy" {
-            $serviceArray = @()
-            if ($Services) {
-                $serviceArray = $Services -split "," | ForEach-Object { $_.Trim() }
-            }
             Invoke-Deploy -ServiceList $serviceArray
         }
         "destroy" {
@@ -588,10 +751,7 @@ function Main {
             Write-Host ""
             Write-Host "Waiting 30 seconds for AKS cluster to stabilize..." -ForegroundColor Yellow
             Start-Sleep -Seconds 30
-            $serviceArray = @()
-            if ($Services) {
-                $serviceArray = $Services -split "," | ForEach-Object { $_.Trim() }
-            }
+            Invoke-Build -ServiceList $serviceArray
             Invoke-Deploy -ServiceList $serviceArray
         }
     }
