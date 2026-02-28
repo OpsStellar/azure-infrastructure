@@ -126,6 +126,19 @@ jobs:
             echo "  → No AKS cluster found in ${RG}, will be created by pulumi up"
           fi
 
+          # Remove any stale AKS state entries with wrong logical names (e.g. opsstellar-dev-aks116542dd)
+          # These cause Pulumi to delete+recreate the cluster on next up
+          EXPECTED_AKS_NAME="${PREFIX}-aks"
+          pulumi state export 2>/dev/null | \
+            jq -r '.deployment.resources[] | select(.type == "azure-native:containerservice:ManagedCluster") | .urn' | \
+            while read URN; do
+              LOGICAL=$(echo "$URN" | awk -F '::' '{print $NF}')
+              if [ "$LOGICAL" != "$EXPECTED_AKS_NAME" ]; then
+                echo "Removing stale AKS state entry: $LOGICAL (expected: $EXPECTED_AKS_NAME)"
+                pulumi state delete "$URN" --yes 2>&1 || echo "  → could not delete, skipping"
+              fi
+            done
+
       - name: Pulumi up
         if: ${{ !inputs.destroy }}
         run: |

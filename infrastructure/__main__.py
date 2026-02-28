@@ -136,7 +136,11 @@ aks_cluster = azure_native.containerservice.ManagedCluster(
         )
     ],
     
-    tags=tags
+    tags=tags,
+    opts=pulumi.ResourceOptions(
+        protect=True,                      # prevent accidental deletion via pulumi up
+        ignore_changes=["tags", "kubernetesVersion", "agentPoolProfiles[0].count"],
+    )
 )
 
 # Get AKS credentials
