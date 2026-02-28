@@ -56,6 +56,14 @@ jobs:
             --tenant $ARM_TENANT_ID
           az account set -s $ARM_SUBSCRIPTION_ID
 
+      - name: Create Pulumi state container
+        run: |
+          az storage container create \
+            --name pulumistate \
+            --account-name $AZURE_STORAGE_ACCOUNT \
+            --account-key $AZURE_STORAGE_KEY \
+            --output none
+
       - name: Pulumi login (Azure Blob backend)
         run: pulumi login azblob://pulumistate
 
