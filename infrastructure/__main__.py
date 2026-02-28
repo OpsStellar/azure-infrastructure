@@ -102,6 +102,7 @@ aks_subnet = azure_native.network.Subnet(
 aks_cluster = azure_native.containerservice.ManagedCluster(
     f"{resource_prefix}-aks",
     resource_group_name=resource_group.name,
+    resource_name_=f"{resource_prefix}-aks",  # pin Azure resource name (avoids random suffix)
     location=location,
     dns_prefix=f"{resource_prefix}-aks",
     kubernetes_version=k8s_version,
@@ -149,6 +150,7 @@ aks_cluster = azure_native.containerservice.ManagedCluster(
             "workload_auto_scaler_profile",
             "auto_upgrade_profile",
             "metrics_profile",
+            "resource_name_",              # ignore for existing clusters with old random-suffix name
         ],
     )
 )
