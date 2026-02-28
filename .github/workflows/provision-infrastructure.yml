@@ -146,6 +146,73 @@ jobs:
           pulumi refresh --yes --skip-preview
           pulumi up --yes --skip-preview
 
+      - name: Upgrade AKS node pool VM size
+        if: ${{ !inputs.destroy }}
+        run: |
+          ENV="${{ inputs.environment }}"
+          RG="opsstellar-${ENV}-rg"
+          DESIRED_VM=$(pulumi config get node_vm_size 2>/dev/null || echo "Standard_D4s_v5")
+
+          # Discover actual cluster name
+          AKS_NAME=$(az aks list --resource-group $RG --query "[0].name" -o tsv)
+          if [ -z "$AKS_NAME" ]; then echo "No AKS cluster found, skipping node pool upgrade"; exit 0; fi
+
+          CURRENT_VM=$(az aks nodepool show \
+            --cluster-name $AKS_NAME \
+            --resource-group $RG \
+            --nodepool-name nodepool1 \
+            --query vmSize -o tsv 2>/dev/null || echo "unknown")
+
+          echo "Current VM size: $CURRENT_VM | Desired: $DESIRED_VM"
+
+          if [ "$CURRENT_VM" = "$DESIRED_VM" ]; then
+            echo "Node pool already using $DESIRED_VM — no upgrade needed"
+            exit 0
+          fi
+
+          echo "Adding new node pool (nodepool2) with $DESIRED_VM..."
+          MIN=$(pulumi config get min_node_count 2>/dev/null || echo 1)
+          MAX=$(pulumi config get max_node_count 2>/dev/null || echo 3)
+
+          az aks nodepool add \
+            --cluster-name $AKS_NAME \
+            --resource-group $RG \
+            --name nodepool2 \
+            --vm-size $DESIRED_VM \
+            --node-count $MIN \
+            --min-count $MIN \
+            --max-count $MAX \
+            --enable-cluster-autoscaler \
+            --mode System \
+            --no-wait
+
+          echo "Waiting for nodepool2 to be Ready..."
+          az aks nodepool wait \
+            --cluster-name $AKS_NAME \
+            --resource-group $RG \
+            --name nodepool2 \
+            --created --timeout 600
+
+          echo "Getting AKS credentials for kubectl..."
+          az aks get-credentials --resource-group $RG --name $AKS_NAME --overwrite-existing
+
+          echo "Cordoning old nodepool1..."
+          kubectl cordon -l agentpool=nodepool1 --ignore-not-found=true
+
+          echo "Draining old nodepool1..."
+          kubectl drain -l agentpool=nodepool1 \
+            --ignore-daemonsets --delete-emptydir-data \
+            --force --timeout=300s --ignore-not-found=true || true
+
+          echo "Deleting old nodepool1..."
+          az aks nodepool delete \
+            --cluster-name $AKS_NAME \
+            --resource-group $RG \
+            --name nodepool1 \
+            --no-wait
+
+          echo "Node pool upgrade complete — new pool: nodepool2 ($DESIRED_VM)"
+
       - name: Export outputs
         if: ${{ !inputs.destroy }}
         run: |
