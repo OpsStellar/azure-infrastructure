@@ -12,7 +12,7 @@ config:
   opsstellar-azure:environment: dev
   # Kubernetes Configuration
   opsstellar-azure:k8s_version: "1.33.6"
-  opsstellar-azure:max_node_count: "3"
+  opsstellar-azure:max_node_count: "2"
   opsstellar-azure:min_node_count: "1"
   opsstellar-azure:node_count: "1"
   opsstellar-azure:node_vm_size: Standard_D4s_v5
