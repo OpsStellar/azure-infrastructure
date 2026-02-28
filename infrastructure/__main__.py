@@ -139,7 +139,26 @@ aks_cluster = azure_native.containerservice.ManagedCluster(
     tags=tags,
     opts=pulumi.ResourceOptions(
         protect=True,                      # prevent accidental deletion via pulumi up
-        ignore_changes=["tags", "kubernetesVersion", "agentPoolProfiles[0].count"],
+        ignore_changes=[
+            "tags",
+            "kubernetesVersion",
+            "agentPoolProfiles[0].count",
+            "agentPoolProfiles[0].nodeLabels",
+            "agentPoolProfiles[0].nodeTaints",
+            "agentPoolProfiles[0].upgradeSettings",
+            "agentPoolProfiles[0].currentOrchestratorVersion",
+            "agentPoolProfiles[0].osSku",
+            "networkProfile.podCidr",
+            "networkProfile.podCidrs",
+            "networkProfile.serviceCidrs",
+            "networkProfile.ipFamilies",
+            "securityProfile",
+            "storageProfile",
+            "oidcIssuerProfile",
+            "workloadAutoScalerProfile",
+            "autoUpgradeProfile",
+            "metricsProfile",
+        ],
     )
 )
 

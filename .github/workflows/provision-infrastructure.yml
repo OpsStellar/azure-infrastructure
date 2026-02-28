@@ -143,6 +143,7 @@ jobs:
         if: ${{ !inputs.destroy }}
         run: |
           echo "## Provisioning ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          pulumi refresh --yes --skip-preview
           pulumi up --yes --skip-preview
 
       - name: Export outputs
