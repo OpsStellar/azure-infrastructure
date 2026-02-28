@@ -70,6 +70,56 @@ jobs:
       - name: Select stack
         run: pulumi stack select ${{ inputs.environment }} || pulumi stack init ${{ inputs.environment }}
 
+      - name: Import existing Azure resources into state
+        if: ${{ !inputs.destroy }}
+        run: |
+          ENV="${{ inputs.environment }}"
+          PREFIX="opsstellar-${ENV}"
+          SUB="${ARM_SUBSCRIPTION_ID}"
+          RG="${PREFIX}-rg"
+
+          import_if_exists() {
+            local TYPE=$1 NAME=$2 ID=$3 CHECK_CMD=$4
+            if eval "$CHECK_CMD" &>/dev/null 2>&1; then
+              echo "Importing $NAME..."
+              pulumi import "$TYPE" "$NAME" "$ID" --yes --skip-preview --generate-code=false 2>&1 || \
+                echo "  → skipped (already in state or import failed)"
+            else
+              echo "  → $NAME not found in Azure, will be created by pulumi up"
+            fi
+          }
+
+          # Resource Group
+          import_if_exists \
+            "azure-native:resources:ResourceGroup" "${RG}" \
+            "/subscriptions/${SUB}/resourceGroups/${RG}" \
+            "az group show --name ${RG}"
+
+          # ACR (name strips hyphens: opsstellardevacr)
+          ACR_NAME="opsstellar${ENV}acr"
+          import_if_exists \
+            "azure-native:containerregistry:Registry" "${PREFIX}-acr" \
+            "/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerRegistry/registries/${ACR_NAME}" \
+            "az acr show --name ${ACR_NAME} --resource-group ${RG}"
+
+          # Virtual Network
+          import_if_exists \
+            "azure-native:network:VirtualNetwork" "${PREFIX}-vnet" \
+            "/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.Network/virtualNetworks/${PREFIX}-vnet" \
+            "az network vnet show --name ${PREFIX}-vnet --resource-group ${RG}"
+
+          # AKS Subnet
+          import_if_exists \
+            "azure-native:network:Subnet" "${PREFIX}-aks-subnet" \
+            "/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.Network/virtualNetworks/${PREFIX}-vnet/subnets/${PREFIX}-aks-subnet" \
+            "az network vnet subnet show --name ${PREFIX}-aks-subnet --vnet-name ${PREFIX}-vnet --resource-group ${RG}"
+
+          # AKS Cluster
+          import_if_exists \
+            "azure-native:containerservice:ManagedCluster" "${PREFIX}-aks" \
+            "/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${PREFIX}-aks" \
+            "az aks show --name ${PREFIX}-aks --resource-group ${RG}"
+
       - name: Pulumi up
         if: ${{ !inputs.destroy }}
         run: |
