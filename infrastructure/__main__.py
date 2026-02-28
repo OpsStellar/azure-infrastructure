@@ -102,7 +102,6 @@ aks_subnet = azure_native.network.Subnet(
 aks_cluster = azure_native.containerservice.ManagedCluster(
     f"{resource_prefix}-aks",
     resource_group_name=resource_group.name,
-    resource_name=f"{resource_prefix}-aks",
     location=location,
     dns_prefix=f"{resource_prefix}-aks",
     kubernetes_version=k8s_version,
