@@ -12,10 +12,10 @@ config:
   opsstellar-azure:environment: dev
   # Kubernetes Configuration
   opsstellar-azure:k8s_version: "1.33.6"
-  opsstellar-azure:max_node_count: "2"
+  opsstellar-azure:max_node_count: "3"
   opsstellar-azure:min_node_count: "1"
   opsstellar-azure:node_count: "1"
-  opsstellar-azure:node_vm_size: Standard_D4s_v5
+  opsstellar-azure:node_vm_size: Standard_DC2s_v3
   # Resource naming
   opsstellar-azure:project_name: opsstellar
   opsstellar-azure:service_cidr: "10.1.0.0/16"
