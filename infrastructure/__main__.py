@@ -150,7 +150,6 @@ aks_cluster = azure_native.containerservice.ManagedCluster(
             "workload_auto_scaler_profile",
             "auto_upgrade_profile",
             "metrics_profile",
-            "resource_name_",              # ignore for existing clusters with old random-suffix name
         ],
     )
 )
