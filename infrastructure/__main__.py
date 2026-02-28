@@ -141,15 +141,15 @@ aks_cluster = azure_native.containerservice.ManagedCluster(
         protect=True,                      # prevent accidental deletion via pulumi up
         ignore_changes=[
             "tags",
-            "kubernetesVersion",
-            "agentPoolProfiles",              # node pool changes handled via az CLI (VM resize requires new pool)
-            "networkProfile",                 # network config is immutable after creation
-            "securityProfile",
-            "storageProfile",
-            "oidcIssuerProfile",
-            "workloadAutoScalerProfile",
-            "autoUpgradeProfile",
-            "metricsProfile",
+            "kubernetes_version",
+            "agent_pool_profiles",             # node pool changes handled via az CLI (VM resize requires new pool)
+            "network_profile",                 # network config is immutable after creation
+            "security_profile",
+            "storage_profile",
+            "oidc_issuer_profile",
+            "workload_auto_scaler_profile",
+            "auto_upgrade_profile",
+            "metrics_profile",
         ],
     )
 )
