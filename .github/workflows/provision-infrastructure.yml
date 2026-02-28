@@ -57,7 +57,7 @@ jobs:
           az account set -s $ARM_SUBSCRIPTION_ID
 
       - name: Pulumi login (Azure Blob backend)
-        run: pulumi login azblob://pulumistate --self-managed-state-encryption
+        run: pulumi login azblob://pulumistate
 
       - name: Select stack
         run: pulumi stack select ${{ inputs.environment }} || pulumi stack init ${{ inputs.environment }}
