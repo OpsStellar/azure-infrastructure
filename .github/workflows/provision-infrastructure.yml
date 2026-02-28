@@ -114,11 +114,17 @@ jobs:
             "/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.Network/virtualNetworks/${PREFIX}-vnet/subnets/${PREFIX}-aks-subnet" \
             "az network vnet subnet show --name ${PREFIX}-aks-subnet --vnet-name ${PREFIX}-vnet --resource-group ${RG}"
 
-          # AKS Cluster
-          import_if_exists \
-            "azure-native:containerservice:ManagedCluster" "${PREFIX}-aks" \
-            "/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${PREFIX}-aks" \
-            "az aks show --name ${PREFIX}-aks --resource-group ${RG}"
+          # AKS Cluster — name has random suffix so discover it dynamically
+          AKS_NAME=$(az aks list --resource-group ${RG} --query "[0].name" -o tsv 2>/dev/null || true)
+          if [ -n "$AKS_NAME" ]; then
+            echo "Importing AKS cluster: ${AKS_NAME}..."
+            pulumi import "azure-native:containerservice:ManagedCluster" "${PREFIX}-aks" \
+              "/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.ContainerService/managedClusters/${AKS_NAME}" \
+              --yes --skip-preview --generate-code=false 2>&1 || \
+              echo "  → skipped (already in state)"
+          else
+            echo "  → No AKS cluster found in ${RG}, will be created by pulumi up"
+          fi
 
       - name: Pulumi up
         if: ${{ !inputs.destroy }}
