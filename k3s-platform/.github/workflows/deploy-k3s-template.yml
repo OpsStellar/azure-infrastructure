@@ -1,0 +1,149 @@
+name: Deploy to k3s VM
+
+# ──────────────────────────────────────────────────────────────────────────────
+# This workflow deploys %%SERVICE_NAME%% to the single-node k3s platform on an
+# Azure VM. It replaces the AKS-based deploy-aks.yml with no Azure CLI required.
+#
+# Required GitHub Secrets (set at repo or org level):
+#   K3S_KUBECONFIG  — base64-encoded k3s kubeconfig with VM public IP
+#                     Generate with: k3s-platform/scripts/export-kubeconfig.sh
+#   ACR_NAME        — e.g. opsstellardevacr
+#   ACR_USERNAME    — Service Principal App ID (AcrPull role on ACR)
+#   ACR_PASSWORD    — Service Principal password
+# ──────────────────────────────────────────────────────────────────────────────
+
+on:
+  # Auto-triggered after the Build & Push to ACR workflow completes
+  # (Commented out - manual deployment only. Re-enable to trigger on build completion.)
+  # workflow_run:
+  #   workflows: ["Build & Push to ACR"]
+  #   types:
+  #     - completed
+
+  # Manual trigger with environment and tag overrides
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target namespace (environment)"
+        required: true
+        type: choice
+        options:
+          - platform
+          - dev
+          - staging
+        default: platform
+      image_tag:
+        description: "Image tag to deploy (short SHA, e.g. a1b2c3d4). Defaults to HEAD short SHA."
+        required: false
+
+env:
+  SERVICE_NAME: %%SERVICE_NAME%%
+  ACR_SERVER: ${{ secrets.ACR_NAME }}.azurecr.io
+  NAMESPACE: platform    # default; overridden by workflow_dispatch input
+
+jobs:
+  deploy:
+    name: Deploy %%SERVICE_NAME%% → k3s
+    # On workflow_run, only proceed when the build succeeded
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── 2. Resolve image tag and namespace ─────────────────────────────────
+      - name: Resolve image tag and environment
+        id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            SHORT_SHA=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-8)
+            IMAGE_TAG="${SHORT_SHA}"
+            NAMESPACE="platform"
+          else
+            INPUT_TAG="${{ github.event.inputs.image_tag }}"
+            IMAGE_TAG="${INPUT_TAG:-$(echo ${{ github.sha }} | cut -c1-8)}"
+            NAMESPACE="${{ github.event.inputs.environment }}"
+          fi
+          echo "image_tag=${IMAGE_TAG}"   >> "$GITHUB_OUTPUT"
+          echo "namespace=${NAMESPACE}"   >> "$GITHUB_OUTPUT"
+          echo "Deploying: ${{ env.SERVICE_NAME }}:${IMAGE_TAG} → namespace/${NAMESPACE}"
+
+      # ── 3. Configure kubectl using k3s kubeconfig ──────────────────────────
+      - name: Configure kubectl
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.K3S_KUBECONFIG }}" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      # ── 4. Verify cluster connectivity ─────────────────────────────────────
+      - name: Verify cluster connectivity
+        run: |
+          kubectl version --client
+          kubectl cluster-info
+          kubectl get nodes
+
+      # ── 5. Install Helm ────────────────────────────────────────────────────
+      - name: Install Helm
+        run: |
+          if ! command -v helm &>/dev/null; then
+            curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          fi
+          helm version --short
+
+      # ── 6. Create namespace if not present ────────────────────────────────
+      - name: Ensure namespace exists
+        run: |
+          kubectl create namespace "${{ steps.resolve.outputs.namespace }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # ── 7. Refresh ACR imagePullSecret ────────────────────────────────────
+      - name: Create / refresh ACR pull secret
+        run: |
+          kubectl create secret docker-registry acr-secret \
+            --namespace="${{ steps.resolve.outputs.namespace }}" \
+            --docker-server="${{ env.ACR_SERVER }}" \
+            --docker-username="${{ secrets.ACR_USERNAME }}" \
+            --docker-password="${{ secrets.ACR_PASSWORD }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # ── 8. Helm deploy ────────────────────────────────────────────────────
+      - name: Deploy with Helm
+        run: |
+          IMAGE_TAG="${{ steps.resolve.outputs.image_tag }}"
+          NAMESPACE="${{ steps.resolve.outputs.namespace }}"
+
+          helm upgrade "${{ env.SERVICE_NAME }}" ./helm \
+            --install \
+            --create-namespace \
+            --namespace "$NAMESPACE" \
+            --set image.repository="${{ env.ACR_SERVER }}/${{ env.SERVICE_NAME }}" \
+            --set image.tag="${IMAGE_TAG}" \
+            --set image.pullPolicy=Always \
+            --set imagePullSecrets[0].name=acr-secret \
+            --set namespace="$NAMESPACE" \
+            --values ./helm/values.yaml \
+            --wait \
+            --timeout 3m \
+            --atomic \
+            --cleanup-on-fail
+
+      # ── 9. Deployment summary ─────────────────────────────────────────────
+      - name: Deployment summary
+        if: always()
+        run: |
+          NAMESPACE="${{ steps.resolve.outputs.namespace }}"
+          echo "──────────────────────────────────────────────"
+          echo "  Service : ${{ env.SERVICE_NAME }}"
+          echo "  Tag     : ${{ steps.resolve.outputs.image_tag }}"
+          echo "  NS      : ${NAMESPACE}"
+          echo "──────────────────────────────────────────────"
+          kubectl rollout status deployment/${{ env.SERVICE_NAME }} \
+            -n "$NAMESPACE" --timeout=120s 2>/dev/null || true
+          echo ""
+          kubectl get pods -n "$NAMESPACE" \
+            -l app=${{ env.SERVICE_NAME }} \
+            -o wide 2>/dev/null || true
