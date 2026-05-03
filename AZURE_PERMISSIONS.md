@@ -12,6 +12,8 @@ AuthorizationFailed: The client 'live.com#your-email@example.com' with object id
 - 'Microsoft.ContainerService/managedClusters/listClusterUserCredential/action'
 ```
 
+
+
 ## Required Permissions
 
 Your Azure account needs these specific permissions to export ACR credentials and AKS kubeconfig:
